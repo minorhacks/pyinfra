@@ -8,7 +8,12 @@ from __future__ import annotations
 
 from pyinfra import host
 from pyinfra.api import operation
-from pyinfra.facts.docker import DockerContainer, DockerNetwork, DockerPlugin, DockerVolume
+from pyinfra.facts.docker import (
+    DockerContainer,
+    DockerNetwork,
+    DockerPlugin,
+    DockerVolume,
+)
 
 from .util.docker import ContainerSpec, handle_docker
 
@@ -17,6 +22,7 @@ from .util.docker import ContainerSpec, handle_docker
 def container(
     container: str,
     image: str = "",
+    args: list[str] | None = None,
     ports: list[str] | None = None,
     networks: list[str] | None = None,
     volumes: list[str] | None = None,
@@ -30,6 +36,7 @@ def container(
     Manage Docker containers
 
     + container: name to identify the container
+    + args: list of command-line args to supply to the image
     + image: container image and tag ex: nginx:alpine
     + networks: network list to attach on container
     + ports: port list to expose
@@ -74,6 +81,7 @@ def container(
 
     want_spec = ContainerSpec(
         image,
+        args or list(),
         ports or list(),
         networks or list(),
         volumes or list(),
@@ -170,7 +178,9 @@ def image(image, present=True):
 
 
 @operation()
-def volume(volume: str, driver: str = "", labels: list[str] | None = None, present: bool = True):
+def volume(
+    volume: str, driver: str = "", labels: list[str] | None = None, present: bool = True
+):
     """
     Manage Docker volumes
 
