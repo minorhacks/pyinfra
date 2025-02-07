@@ -29,6 +29,8 @@ def container(
     volumes: list[str] | None = None,
     env_vars: list[str] | None = None,
     pull_always: bool = False,
+    restart_policy: str | None = None,
+    privileged: bool = False,
     present: bool = True,
     force: bool = False,
     start: bool = True,
@@ -86,8 +88,11 @@ def container(
         set(ports) if ports else set(),
         set(networks) if networks else set(),
         volumes or list(),
+        devices or list(),
         set(env_vars) if env_vars else set(),
         pull_always,
+        restart_policy,
+        privileged,
     )
 
     existent_container: Dict[str, Any] = next(

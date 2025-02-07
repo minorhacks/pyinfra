@@ -1,7 +1,7 @@
 import dataclasses
 import hashlib
 import json
-from typing import Any, List, Set
+from typing import Any, List, Optional, Set
 
 from pyinfra.api import OperationError
 
@@ -29,8 +29,11 @@ class ContainerSpec:
     ports: Set[str] = dataclasses.field(default_factory=set)
     networks: Set[str] = dataclasses.field(default_factory=set)
     volumes: List[str] = dataclasses.field(default_factory=list)
+    devices: List[str] = dataclasses.field(default_factory=list)
     env_vars: Set[str] = dataclasses.field(default_factory=set)
     pull_always: bool = False
+    restart_policy: Optional[str] = None
+    privileged: bool = False
 
     def container_create_args(self):
         args = [f"--label '{CONTAINER_CONFIG_HASH_LABEL}={self.config_hash()}'"]
@@ -43,11 +46,20 @@ class ContainerSpec:
         for volume in self.volumes:
             args.append("-v {0}".format(volume))
 
+        for device in self.devices:
+            args.append(f"--device={device}")
+
         for env_var in sorted(self.env_vars):
             args.append("-e {0}".format(env_var))
 
         if self.pull_always:
             args.append("--pull always")
+
+        if self.restart_policy:
+            args.append(f"--restart {self.restart_policy}")
+
+        if self.privileged:
+            args.append("--privileged")
 
         args.append(self.image)
         args.extend(self.args)
