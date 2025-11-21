@@ -27,6 +27,7 @@ def container(
     ports: list[str] | None = None,
     networks: list[str] | None = None,
     volumes: list[str] | None = None,
+    devices: list[str] | None = None,
     env_vars: list[str] | None = None,
     pull_always: bool = False,
     restart_policy: str | None = None,
@@ -44,6 +45,7 @@ def container(
     + networks: network list to attach on container
     + ports: port list to expose
     + volumes: volume list to map on container
+    + devices: device list to inject on container
     + env_vars: environment variable list to inject on container
     + pull_always: force image pull
     + force: remove a container with same name and create a new one
