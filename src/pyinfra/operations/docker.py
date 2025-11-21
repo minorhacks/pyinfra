@@ -5,23 +5,33 @@ as inventory directly.
 """
 
 from __future__ import annotations
+from typing import Any, Dict
 
 from pyinfra import host
 from pyinfra.api import operation
-from pyinfra.facts.docker import DockerContainer, DockerNetwork, DockerPlugin, DockerVolume
+from pyinfra.facts.docker import (
+    DockerContainer,
+    DockerNetwork,
+    DockerPlugin,
+    DockerVolume,
+)
 
-from .util.docker import ContainerSpec, handle_docker
+from .util.docker import CONTAINER_CONFIG_HASH_LABEL, ContainerSpec, handle_docker
 
 
 @operation()
 def container(
     container: str,
     image: str = "",
+    args: list[str] | None = None,
     ports: list[str] | None = None,
     networks: list[str] | None = None,
     volumes: list[str] | None = None,
+    devices: list[str] | None = None,
     env_vars: list[str] | None = None,
     pull_always: bool = False,
+    restart_policy: str | None = None,
+    privileged: bool = False,
     present: bool = True,
     force: bool = False,
     start: bool = True,
@@ -30,10 +40,12 @@ def container(
     Manage Docker containers
 
     + container: name to identify the container
+    + args: list of command-line args to supply to the image
     + image: container image and tag ex: nginx:alpine
     + networks: network list to attach on container
     + ports: port list to expose
     + volumes: volume list to map on container
+    + devices: device list to inject on container
     + env_vars: environment variable list to inject on container
     + pull_always: force image pull
     + force: remove a container with same name and create a new one
@@ -74,28 +86,40 @@ def container(
 
     want_spec = ContainerSpec(
         image,
-        ports or list(),
-        networks or list(),
+        args or list(),
+        set(ports) if ports else set(),
+        set(networks) if networks else set(),
         volumes or list(),
-        env_vars or list(),
+        devices or list(),
+        set(env_vars) if env_vars else set(),
         pull_always,
+        restart_policy,
+        privileged,
     )
-    existent_container = host.get_fact(DockerContainer, object_id=container)
 
-    container_spec_changes = want_spec.diff_from_inspect(existent_container)
-
-    is_running = (
-        (existent_container[0]["State"]["Status"] == "running")
-        if existent_container and existent_container[0]
-        else False
+    existent_container: Dict[str, Any] = next(
+        iter(host.get_fact(DockerContainer, object_id=container)), {}
     )
-    recreating = existent_container and (force or container_spec_changes)
+
+    old_hash = (
+        existent_container.get("Config", {})
+        .get("Labels", {})
+        .get(CONTAINER_CONFIG_HASH_LABEL, None)
+    )
+
+    container_spec_changed = old_hash != want_spec.config_hash()
+
+    is_running = existent_container.get("State", {}).get("Status", "") == "running"
+    recreating = existent_container and (force or container_spec_changed)
     removing = existent_container and not present
 
     do_remove = recreating or removing
-    do_create = (present and not existent_container) or recreating
-    do_start = start and (recreating or not is_running)
-    do_stop = not start and not removing and is_running
+    do_create = not removing and ((present and not existent_container) or recreating)
+    do_start = present and start and (recreating or not is_running)
+    do_stop = not start and not removing and is_running and not recreating
+
+    if not (do_remove or do_create or do_start or do_stop):
+        host.noop("container configuration is already correct")
 
     if do_remove:
         yield handle_docker(
@@ -170,7 +194,9 @@ def image(image, present=True):
 
 
 @operation()
-def volume(volume: str, driver: str = "", labels: list[str] | None = None, present: bool = True):
+def volume(
+    volume: str, driver: str = "", labels: list[str] | None = None, present: bool = True
+):
     """
     Manage Docker volumes
 
